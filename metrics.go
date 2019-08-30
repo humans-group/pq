@@ -3,10 +3,11 @@ package pg
 import (
 	"context"
 	"errors"
-	"github.com/jackc/pgx"
-	"github.com/prometheus/client_golang/prometheus"
 	"sync"
 	"time"
+
+	"github.com/jackc/pgx"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
