@@ -30,6 +30,7 @@ func NewClient(cfg Config) Client {
 	connPool, err := pgx.NewConnPool(pgx.ConnPoolConfig{
 		ConnConfig:     cfg.pgxCfg(),
 		MaxConnections: cfg.MaxConnections,
+		AcquireTimeout: cfg.AcquireTimeout,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("failed to connect to postgres %s: %v", cfg.ConnString, err))
