@@ -1,4 +1,4 @@
-module github.com/mkorolyov/pg
+module github.com/humans-net/pq
 
 go 1.12
 
