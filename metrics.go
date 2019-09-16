@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -70,7 +70,7 @@ func (ta *metricsAdapter) observe(method string, startedAt time.Time) {
 // prometheusCollector exports metrics from db.DBStats as prometheus` gauges.
 type prometheusCollector struct {
 	mu                sync.RWMutex
-	dbs               map[string]*pgx.ConnPool
+	dbs               map[string]*pgxpool.Pool
 	openedConnections *prometheus.Desc
 	maxConnections    *prometheus.Desc
 	unusedConnections *prometheus.Desc
@@ -79,7 +79,7 @@ type prometheusCollector struct {
 var errAlreadyRegistered = errors.New("already registered")
 
 // register adds connection to pool. Returns an error on duplicate pool name.
-func (pc *prometheusCollector) register(name string, conn *pgx.ConnPool) error {
+func (pc *prometheusCollector) register(name string, conn *pgxpool.Pool) error {
 	if name == "" {
 		name = "default"
 	}
@@ -100,7 +100,7 @@ var collector *prometheusCollector
 
 func init() {
 	collector = &prometheusCollector{
-		dbs:               make(map[string]*pgx.ConnPool),
+		dbs:               make(map[string]*pgxpool.Pool),
 		openedConnections: prometheus.NewDesc("db_open_connections", "db open connections", []string{"name"}, nil),
 		maxConnections:    prometheus.NewDesc("db_max_connections", "db max connections", []string{"name"}, nil),
 		unusedConnections: prometheus.NewDesc("db_unused_connections", "db unused connections", []string{"name"}, nil),
@@ -122,8 +122,8 @@ func (pc *prometheusCollector) Collect(ch chan<- prometheus.Metric) {
 	for poolName, pool := range pc.dbs {
 		stats := pool.Stat()
 
-		ch <- prometheus.MustNewConstMetric(pc.openedConnections, prometheus.GaugeValue, float64(stats.CurrentConnections), poolName)
-		ch <- prometheus.MustNewConstMetric(pc.unusedConnections, prometheus.GaugeValue, float64(stats.AvailableConnections), poolName)
-		ch <- prometheus.MustNewConstMetric(pc.maxConnections, prometheus.GaugeValue, float64(stats.MaxConnections), poolName)
+		ch <- prometheus.MustNewConstMetric(pc.openedConnections, prometheus.GaugeValue, float64(stats.AcquiredConns()), poolName)
+		ch <- prometheus.MustNewConstMetric(pc.unusedConnections, prometheus.GaugeValue, float64(stats.IdleConns()), poolName)
+		ch <- prometheus.MustNewConstMetric(pc.maxConnections, prometheus.GaugeValue, float64(stats.MaxConns()), poolName)
 	}
 }

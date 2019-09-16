@@ -4,34 +4,37 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 type PGXAdapter struct {
-	pool *pgx.ConnPool
+	pool *pgxpool.Pool
 }
 
 func (p *PGXAdapter) Exec(ctx context.Context, sql string, args ...interface{}) (result RowsAffected, err error) {
-	return p.pool.ExecEx(ctx, sql, nil, args)
+	return p.pool.Exec(ctx, sql, nil, args)
 }
 
 func (p *PGXAdapter) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
-	return p.pool.QueryEx(ctx, sql, nil, args)
+	return p.pool.Query(ctx, sql, nil, args)
 }
 
 func (p *PGXAdapter) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
-	return p.pool.QueryRowEx(ctx, sql, nil, args)
+	return p.pool.QueryRow(ctx, sql, nil, args)
 }
 
 func (p PGXAdapter) SetLogLevel(lvl int) error {
 	panic("implement me")
 }
 
-func NewClient(cfg Config) Client {
-	connPool, err := pgx.NewConnPool(pgx.ConnPoolConfig{
-		ConnConfig:     cfg.pgxCfg(),
-		MaxConnections: cfg.MaxConnections,
-		AcquireTimeout: cfg.AcquireTimeout,
+func NewClient(ctx context.Context, cfg Config) Client {
+	connPool, err := pgxpool.ConnectConfig(ctx, &pgxpool.Config{
+		ConnConfig: cfg.pgxCfg(),
+		MaxConns:   cfg.MaxConnections,
+		BeforeAcquire: func(ctx context.Context, conn *pgx.Conn) bool {
+			return !conn.IsClosed()
+		},
 	})
 	if err != nil {
 		panic(fmt.Sprintf("failed to connect to postgres %s: %v", cfg.ConnString, err))

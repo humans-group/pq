@@ -5,8 +5,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/jackc/pgx"
-	"github.com/jackc/pgx/log/zapadapter"
+	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/log/zapadapter"
 	"go.uber.org/zap"
 )
 
@@ -17,13 +18,13 @@ type Config struct {
 	Logger             *zap.Logger
 	Tracing            bool
 	Metrics            bool
-	MaxConnections     int
+	MaxConnections     int32
 	TCPKeepAlivePeriod time.Duration
 	AcquireTimeout     time.Duration
 }
 
-func (cfg Config) pgxCfg() pgx.ConnConfig {
-	c, err := pgx.ParseConnectionString(cfg.ConnString)
+func (cfg Config) pgxCfg() *pgx.ConnConfig {
+	c, err := pgx.ParseConfig(cfg.ConnString)
 	if err != nil {
 		panic(fmt.Sprintf("failed to parce conn string %s: %v", cfg.ConnString, err))
 	}
@@ -35,7 +36,7 @@ func (cfg Config) pgxCfg() pgx.ConnConfig {
 		Timeout:   cfg.AcquireTimeout,
 		KeepAlive: cfg.TCPKeepAlivePeriod,
 	}
-	c.Dial = dialer.Dial
+	c.Config = pgconn.Config{DialFunc: dialer.DialContext}
 
 	if cfg.Logger != nil {
 		c.Logger = zapadapter.NewLogger(cfg.Logger)
