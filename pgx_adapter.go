@@ -29,6 +29,8 @@ func (p PGXAdapter) SetLogLevel(lvl int) error {
 }
 
 func NewClient(ctx context.Context, cfg Config) Client {
+	cfg.withDefaults()
+
 	connPool, err := pgxpool.ConnectConfig(ctx, &pgxpool.Config{
 		ConnConfig: cfg.pgxCfg(),
 		MaxConns:   cfg.MaxConnections,
