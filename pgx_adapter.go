@@ -3,8 +3,11 @@ package pq
 import (
 	"context"
 	"fmt"
+	"net"
+	"time"
 
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/log/zapadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
@@ -29,15 +32,33 @@ func (p PGXAdapter) SetLogLevel(lvl int) error {
 }
 
 func NewClient(ctx context.Context, cfg Config) Client {
-	cfg.withDefaults()
+	cfg = cfg.withDefaults()
 
-	connPool, err := pgxpool.ConnectConfig(ctx, &pgxpool.Config{
-		ConnConfig: cfg.pgxCfg(),
-		MaxConns:   cfg.MaxConnections,
-		BeforeAcquire: func(ctx context.Context, conn *pgx.Conn) bool {
-			return !conn.IsClosed()
-		},
-	})
+	poolCfg, err := pgxpool.ParseConfig(cfg.ConnString)
+	if err != nil {
+		if err != nil {
+			panic(fmt.Sprintf("failed to connect to postgres %s: %v", cfg.ConnString, err))
+		}
+	}
+
+	if cfg.TCPKeepAlivePeriod == 0 {
+		cfg.TCPKeepAlivePeriod = 5 * time.Minute // that's default value used by pgx internally
+	}
+	dialer := &net.Dialer{
+		Timeout:   cfg.AcquireTimeout,
+		KeepAlive: cfg.TCPKeepAlivePeriod,
+	}
+
+	poolCfg.ConnConfig.DialFunc = dialer.DialContext
+	poolCfg.MaxConns = cfg.MaxConnections
+	if cfg.Logger != nil {
+		poolCfg.ConnConfig.Logger = zapadapter.NewLogger(cfg.Logger)
+	}
+	poolCfg.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
+		return !conn.IsClosed()
+	}
+
+	connPool, err := pgxpool.ConnectConfig(ctx, poolCfg)
 	if err != nil {
 		panic(fmt.Sprintf("failed to connect to postgres %s: %v", cfg.ConnString, err))
 	}
