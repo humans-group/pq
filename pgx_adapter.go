@@ -16,15 +16,15 @@ type PGXAdapter struct {
 }
 
 func (p *PGXAdapter) Exec(ctx context.Context, sql string, args ...interface{}) (result RowsAffected, err error) {
-	return p.pool.Exec(ctx, sql, nil, args)
+	return p.pool.Exec(ctx, sql, args...)
 }
 
 func (p *PGXAdapter) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
-	return p.pool.Query(ctx, sql, nil, args)
+	return p.pool.Query(ctx, sql, args...)
 }
 
 func (p *PGXAdapter) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
-	return p.pool.QueryRow(ctx, sql, nil, args)
+	return p.pool.QueryRow(ctx, sql, args...)
 }
 
 func (p PGXAdapter) SetLogLevel(lvl int) error {
