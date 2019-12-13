@@ -9,7 +9,6 @@ import (
 type Config struct {
 	Name               string
 	ConnString         string
-	LogLevel           string
 	Logger             *zap.Logger `key:"-"`
 	Tracing            bool
 	Metrics            bool
