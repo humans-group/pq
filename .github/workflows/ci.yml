@@ -28,12 +28,14 @@ jobs:
       run: make build
 
     - name: Test
-      uses: codecov/codecov-action@v1
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage.txt
-        flags: unittests
-        name: codecov-coverage
-        yml: ./codecov.yml
-        fail_ci_if_error: true
       run: make test
+
+#    - name: Coverage
+#      uses: codecov/codecov-action@v1
+#      with:
+#        token: ${{ secrets.CODECOV_TOKEN }}
+#        file: ./coverage.txt
+#        flags: unittests
+#        name: codecov-coverage
+#        yml: ./codecov.yml
+#        fail_ci_if_error: true
