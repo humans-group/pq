@@ -43,9 +43,14 @@ func (p *PgxAdapter) Transaction(ctx context.Context, f func(context.Context, Ex
 		if rbErr != nil {
 			err = errors.Wrapf(err, "failed to rollback failed transaction: %v", rbErr)
 		}
+		return err
 	}
 
-	return err
+	if err := tx.Commit(ctx); err != nil {
+		return errors.Wrap(err, "failed to commit transaction")
+	}
+
+	return nil
 }
 
 func (p *PgxAdapter) Exec(ctx context.Context, sql string, args ...interface{}) (result RowsAffected, err error) {
