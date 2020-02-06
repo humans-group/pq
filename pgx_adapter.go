@@ -9,25 +9,58 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zapadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
 )
 
-type PGXAdapter struct {
-	pool *pgxpool.Pool
+type PgxAdapter struct {
+	pool        *pgxpool.Pool
+	withMetrics bool
+	withTracing bool
+	name        string
 }
 
-func (p *PGXAdapter) Exec(ctx context.Context, sql string, args ...interface{}) (result RowsAffected, err error) {
+var _ Client = &PgxAdapter{}
+
+func (p *PgxAdapter) Transaction(ctx context.Context, f func(context.Context, Executor) error) error {
+	tx, er := p.pool.BeginTx(ctx, defaultTxOptions)
+	if er != nil {
+		return er
+	}
+
+	var txAdapter Executor = &PgxTxAdapter{tx}
+	if p.withTracing {
+		txAdapter = &tracingAdapter{Executor: txAdapter}
+	}
+	if p.withMetrics {
+		txAdapter = &metricsAdapter{Executor: txAdapter, name: p.name}
+	}
+	execErr := f(ctx, txAdapter)
+	var err error
+
+	if execErr != nil {
+		err = errors.Wrap(execErr, "failed to exec transaction")
+		rbErr := tx.Rollback(ctx)
+		if rbErr != nil {
+			err = errors.Wrapf(err, "failed to rollback failed transaction: %v", rbErr)
+		}
+	}
+
+	return err
+}
+
+func (p *PgxAdapter) Exec(ctx context.Context, sql string, args ...interface{}) (result RowsAffected, err error) {
 	return p.pool.Exec(ctx, sql, args...)
 }
 
-func (p *PGXAdapter) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
+func (p *PgxAdapter) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
 	return p.pool.Query(ctx, sql, args...)
 }
 
-func (p *PGXAdapter) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
+func (p *PgxAdapter) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
 	return p.pool.QueryRow(ctx, sql, args...)
 }
 
-func (p PGXAdapter) SetLogLevel(lvl int) error {
+func (p PgxAdapter) SetLogLevel(lvl int) error {
 	panic("implement me")
 }
 
@@ -67,14 +100,19 @@ func NewClient(ctx context.Context, cfg Config) Client {
 		panic(fmt.Sprintf("failed to register dbx pool %q: %v", cfg.Name, err))
 	}
 
-	var adapter Client = &PGXAdapter{connPool}
+	var adapter Client = &PgxAdapter{
+		pool:        connPool,
+		withMetrics: cfg.Metrics,
+		withTracing: cfg.Tracing,
+		name:        cfg.Name,
+	}
 
 	if cfg.Tracing {
-		adapter = &tracingAdapter{adapter}
+		adapter = &tracingAdapter{Executor: adapter, Transactor: adapter}
 	}
 
 	if cfg.Metrics {
-		adapter = &metricsAdapter{Client: adapter, name: cfg.Name}
+		adapter = &metricsAdapter{Executor: adapter, Transactor: adapter, name: cfg.Name}
 	}
 
 	return adapter

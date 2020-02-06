@@ -3,6 +3,11 @@ package pq
 import "context"
 
 type Client interface {
+	Executor
+	Transactor
+}
+
+type Executor interface {
 	// Exec executes sql. sql can be either a prepared statement name or an SQL string.
 	// arguments should be referenced positionally from the sql string as $1, $2, etc.
 	Exec(ctx context.Context, sql string, args ...interface{}) (result RowsAffected, err error)
@@ -13,8 +18,10 @@ type Client interface {
 	// QueryRow is a convenience wrapper over Query. Any error that occurs while
 	// querying is deferred until calling Scan on the returned Row.
 	QueryRow(ctx context.Context, sql string, args ...interface{}) Row
-	// SetLogLevel replaces the current log level.
-	SetLogLevel(lvl int) error
+}
+
+type Transactor interface {
+	Transaction(ctx context.Context, f func(context.Context, Executor) error) error
 }
 
 type RowsAffected interface {

@@ -11,15 +11,17 @@ import (
 )
 
 const (
-	methodExec     = "exec"
-	methodQuery    = "query"
-	methodQueryRow = "query_row"
+	methodExec        = "exec"
+	methodTransaction = "transaction"
+	methodQuery       = "query"
+	methodQueryRow    = "query_row"
 )
 
 var clientDurationSummary *prometheus.SummaryVec
 
 type metricsAdapter struct {
-	Client
+	Transactor
+	Executor
 	name string
 }
 
@@ -35,10 +37,19 @@ func init() {
 	prometheus.MustRegister(clientDurationSummary)
 }
 
+func (ta *metricsAdapter) Transaction(ctx context.Context, f func(context.Context, Executor) error) error {
+	start := time.Now()
+
+	err := ta.Transactor.Transaction(ctx, f)
+
+	ta.observe(methodTransaction, start)
+	return err
+}
+
 func (ta *metricsAdapter) Exec(ctx context.Context, sql string, args ...interface{}) (result RowsAffected, err error) {
 	start := time.Now()
 
-	rowsAffected, err := ta.Client.Exec(ctx, sql, args...)
+	rowsAffected, err := ta.Executor.Exec(ctx, sql, args...)
 
 	ta.observe(methodExec, start)
 	return rowsAffected, err
@@ -47,7 +58,7 @@ func (ta *metricsAdapter) Exec(ctx context.Context, sql string, args ...interfac
 func (ta *metricsAdapter) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
 	start := time.Now()
 
-	rows, err := ta.Client.Query(ctx, sql, args...)
+	rows, err := ta.Executor.Query(ctx, sql, args...)
 
 	ta.observe(methodQuery, start)
 	return rows, err
@@ -56,7 +67,7 @@ func (ta *metricsAdapter) Query(ctx context.Context, sql string, args ...interfa
 func (ta *metricsAdapter) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
 	start := time.Now()
 
-	row := ta.Client.QueryRow(ctx, sql, args...)
+	row := ta.Executor.QueryRow(ctx, sql, args...)
 
 	ta.observe(methodQueryRow, start)
 	return row

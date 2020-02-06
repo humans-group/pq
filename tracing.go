@@ -12,6 +12,7 @@ const (
 	operationNameExec     = "pq.Exec"
 	operationNameQuery    = "pq.Query"
 	operationNameQueryRow = "pq.QueryRow"
+	operationNameTransaction = "pq.Transaction"
 	errLogKeyEvent        = "event"
 	errLogKeyMessage      = "message"
 	errLogValueErr        = "error"
@@ -19,13 +20,30 @@ const (
 )
 
 type tracingAdapter struct {
-	Client
+	Transactor
+	Executor
+}
+
+var _ Client = &tracingAdapter{}
+
+func (ta *tracingAdapter) Transaction(ctx context.Context, f func(context.Context, Executor) error) error {
+	span, spanCtx := opentracing.StartSpanFromContext(ctx, operationNameTransaction)
+
+	err := ta.Transactor.Transaction(spanCtx, f)
+
+	if err != nil {
+		traceErr(err, span)
+	}
+
+	span.Finish()
+
+	return err
 }
 
 func (ta *tracingAdapter) Exec(ctx context.Context, sql string, args ...interface{}) (result RowsAffected, err error) {
 	span, spanCtx := startSpan(ctx, sql, operationNameExec)
 
-	rowsAffected, err := ta.Client.Exec(spanCtx, sql, args...)
+	rowsAffected, err := ta.Executor.Exec(spanCtx, sql, args...)
 
 	if err != nil {
 		traceErr(err, span)
@@ -39,7 +57,7 @@ func (ta *tracingAdapter) Exec(ctx context.Context, sql string, args ...interfac
 func (ta *tracingAdapter) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
 	span, spanCtx := startSpan(ctx, sql, operationNameQuery)
 
-	rows, err := ta.Client.Query(spanCtx, sql, args...)
+	rows, err := ta.Executor.Query(spanCtx, sql, args...)
 
 	if err != nil {
 		traceErr(err, span)
@@ -52,7 +70,7 @@ func (ta *tracingAdapter) Query(ctx context.Context, sql string, args ...interfa
 func (ta *tracingAdapter) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
 	span, spanCtx := startSpan(ctx, sql, operationNameQueryRow)
 
-	row := ta.Client.QueryRow(spanCtx, sql, args...)
+	row := ta.Executor.QueryRow(spanCtx, sql, args...)
 
 	span.Finish()
 
