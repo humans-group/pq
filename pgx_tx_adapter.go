@@ -16,7 +16,7 @@ type PgxTxAdapter struct {
 	tx pgx.Tx
 }
 
-var _ Executor = &PgxTxAdapter{}
+var _ Executor = (*PgxTxAdapter)(nil)
 
 func (p *PgxTxAdapter) Exec(ctx context.Context, sql string, args ...interface{}) (result RowsAffected, err error) {
 	return p.tx.Exec(ctx, sql, args...)
