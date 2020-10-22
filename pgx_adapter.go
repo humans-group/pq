@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/log/zapadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/pkg/errors"
 )
 
 type PgxAdapter struct {
@@ -19,12 +18,12 @@ type PgxAdapter struct {
 	name        string
 }
 
-var _ Client = &PgxAdapter{}
+var _ Client = (*PgxAdapter)(nil)
 
 func (p *PgxAdapter) Transaction(ctx context.Context, f func(context.Context, Executor) error) error {
-	tx, er := p.pool.BeginTx(ctx, defaultTxOptions)
-	if er != nil {
-		return er
+	tx, err := p.pool.BeginTx(ctx, defaultTxOptions)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
 	}
 
 	var txAdapter Executor = &PgxTxAdapter{tx}
@@ -34,20 +33,19 @@ func (p *PgxAdapter) Transaction(ctx context.Context, f func(context.Context, Ex
 	if p.withMetrics {
 		txAdapter = &metricsAdapter{Executor: txAdapter, name: p.name}
 	}
-	execErr := f(ctx, txAdapter)
-	var err error
 
-	if execErr != nil {
-		err = errors.Wrap(execErr, "failed to exec transaction")
-		rbErr := tx.Rollback(ctx)
-		if rbErr != nil {
-			err = errors.Wrapf(err, "failed to rollback failed transaction: %v", rbErr)
+	if txErr := f(ctx, txAdapter); txErr != nil {
+		txErr = fmt.Errorf("exec transaction: %w", txErr)
+
+		if err := tx.Rollback(ctx); err != nil {
+			txErr = fmt.Errorf("%w: rollback: %v", txErr, err)
 		}
-		return err
+
+		return txErr
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return errors.Wrap(err, "failed to commit transaction")
+		return fmt.Errorf("commit transaction: %w", err)
 	}
 
 	return nil
@@ -74,9 +72,7 @@ func NewClient(ctx context.Context, cfg Config) Client {
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.ConnString)
 	if err != nil {
-		if err != nil {
-			panic(fmt.Sprintf("failed to connect to postgres %s: %v", cfg.ConnString, err))
-		}
+		panic(fmt.Errorf("connect to postgres %s: %v", cfg.ConnString, err))
 	}
 
 	if cfg.TCPKeepAlivePeriod == 0 {
@@ -98,11 +94,11 @@ func NewClient(ctx context.Context, cfg Config) Client {
 
 	connPool, err := pgxpool.ConnectConfig(ctx, poolCfg)
 	if err != nil {
-		panic(fmt.Sprintf("failed to connect to postgres %s: %v", cfg.ConnString, err))
+		panic(fmt.Errorf("connect to postgres %s: %v", cfg.ConnString, err))
 	}
 
 	if err := collector.register(cfg.Name, connPool); err != nil {
-		panic(fmt.Sprintf("failed to register dbx pool %q: %v", cfg.Name, err))
+		panic(fmt.Errorf("register dbx pool %q: %v", cfg.Name, err))
 	}
 
 	var adapter Client = &PgxAdapter{
