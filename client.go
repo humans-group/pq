@@ -1,6 +1,9 @@
 package pq
 
-import "context"
+import (
+	"context"
+	"github.com/jackc/pgx/v4"
+)
 
 type Client interface {
 	Executor
@@ -18,6 +21,10 @@ type Executor interface {
 	// QueryRow is a convenience wrapper over Query. Any error that occurs while
 	// querying is deferred until calling Scan on the returned Row.
 	QueryRow(ctx context.Context, sql string, args ...interface{}) Row
+	// SendBatch sends all queued queries to the server at once. All queries are run in an implicit transaction unless
+	// explicit transaction control statements are executed. The returned BatchResults must be closed before the connection
+	// is used again.
+	SendBatch(ctx context.Context, batch *pgx.Batch) BatchResults
 }
 
 type Transactor interface {
@@ -55,4 +62,20 @@ type Row interface {
 	// rows were found it returns ErrNoRows. If multiple rows are returned it
 	// ignores all but the first.
 	Scan(dest ...interface{}) (err error)
+}
+
+type BatchResults interface {
+	// Exec reads the results from the next query in the batch as if the query has been sent with Conn.Exec.
+	Exec() (RowsAffected, error)
+
+	// Query reads the results from the next query in the batch as if the query has been sent with Conn.Query.
+	Query() (Rows, error)
+
+	// QueryRow reads the results from the next query in the batch as if the query has been sent with Conn.QueryRow.
+	QueryRow() Row
+
+	// Close closes the batch operation. This must be called before the underlying connection can be used again. Any error
+	// that occurred during a batch operation may have made it impossible to resyncronize the connection with the server.
+	// In this case the underlying connection will have been closed.
+	Close() error
 }

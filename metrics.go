@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -15,6 +16,7 @@ const (
 	methodTransaction = "transaction"
 	methodQuery       = "query"
 	methodQueryRow    = "query_row"
+	methodSendBatch    = "send_batch"
 )
 
 var clientDurationSummary *prometheus.SummaryVec
@@ -71,6 +73,15 @@ func (ta *metricsAdapter) QueryRow(ctx context.Context, sql string, args ...inte
 
 	ta.observe(methodQueryRow, start)
 	return row
+}
+
+func (ta *metricsAdapter) SendBatch(ctx context.Context, batch *pgx.Batch) BatchResults {
+	start := time.Now()
+
+	res := ta.Executor.SendBatch(ctx, batch)
+
+	ta.observe(methodSendBatch, start)
+	return res
 }
 
 func (ta *metricsAdapter) observe(method string, startedAt time.Time) {
