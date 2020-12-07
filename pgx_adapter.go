@@ -63,6 +63,11 @@ func (p *PgxAdapter) QueryRow(ctx context.Context, sql string, args ...interface
 	return p.pool.QueryRow(ctx, sql, args...)
 }
 
+func (p *PgxAdapter) SendBatch(ctx context.Context, batch *pgx.Batch) BatchResults {
+	res := p.pool.SendBatch(ctx, batch)
+	return batchResultsAdapter{BatchResults: res}
+}
+
 func (p PgxAdapter) SetLogLevel(lvl int) error {
 	panic("implement me")
 }
@@ -117,4 +122,21 @@ func NewClient(ctx context.Context, cfg Config) Client {
 	}
 
 	return adapter
+}
+
+
+type batchResultsAdapter struct {
+	pgx.BatchResults
+}
+
+func (b batchResultsAdapter) Exec() (RowsAffected, error) {
+	return b.BatchResults.Exec()
+}
+
+func (b batchResultsAdapter) Query() (Rows, error) {
+	return b.BatchResults.Query()
+}
+
+func (b batchResultsAdapter) QueryRow() Row {
+	return b.BatchResults.QueryRow()
 }

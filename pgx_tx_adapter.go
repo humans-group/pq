@@ -29,3 +29,8 @@ func (p *PgxTxAdapter) Query(ctx context.Context, sql string, args ...interface{
 func (p *PgxTxAdapter) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
 	return p.tx.QueryRow(ctx, sql, args...)
 }
+
+func (p *PgxTxAdapter) SendBatch(ctx context.Context, batch *pgx.Batch) BatchResults {
+	res := p.tx.SendBatch(ctx, batch)
+	return batchResultsAdapter{BatchResults:res}
+}
