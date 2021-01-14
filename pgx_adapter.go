@@ -99,8 +99,9 @@ func NewClient(ctx context.Context, cfg Config) Client {
 
 	connPool, err := pgxpool.ConnectConfig(ctx, poolCfg)
 	if err != nil {
-		securedConnStr := strings.Replace(cfg.ConnString, poolCfg.ConnConfig.Password, "*****", 1)
-		panic(fmt.Errorf("connect to postgres %q: %v", securedConnStr, err))
+		msg := fmt.Sprintf("connect to postgres %q: %v", cfg.ConnString, err)
+		msg = strings.ReplaceAll(msg, poolCfg.ConnConfig.Password, "*****")
+		panic(msg)
 	}
 
 	if err := collector.register(cfg.Name, connPool); err != nil {
