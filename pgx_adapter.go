@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/log/zapadapter"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
@@ -77,7 +77,7 @@ func NewClient(ctx context.Context, cfg Config) Client {
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.ConnString)
 	if err != nil {
-		panic(fmt.Errorf("connect to postgres %s: %v", cfg.ConnString, err))
+		panic(fmt.Errorf("parse config: %v", err))
 	}
 
 	if cfg.TCPKeepAlivePeriod == 0 {
@@ -91,7 +91,7 @@ func NewClient(ctx context.Context, cfg Config) Client {
 	poolCfg.ConnConfig.DialFunc = dialer.DialContext
 	poolCfg.MaxConns = cfg.MaxConnections
 	if cfg.Logger != nil {
-		poolCfg.ConnConfig.Logger = zapadapter.NewLogger(cfg.Logger)
+		poolCfg.ConnConfig.Logger = newLoggerAdapter(cfg.Logger)
 	}
 	poolCfg.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
 		return !conn.IsClosed()
@@ -99,7 +99,9 @@ func NewClient(ctx context.Context, cfg Config) Client {
 
 	connPool, err := pgxpool.ConnectConfig(ctx, poolCfg)
 	if err != nil {
-		panic(fmt.Errorf("connect to postgres %s: %v", cfg.ConnString, err))
+		msg := fmt.Sprintf("connect to postgres %q: %v", cfg.ConnString, err)
+		msg = strings.ReplaceAll(msg, poolCfg.ConnConfig.Password, "*****")
+		panic(msg)
 	}
 
 	if err := collector.register(cfg.Name, connPool); err != nil {
