@@ -9,14 +9,13 @@ import (
 )
 
 const (
-	operationNameExec     = "pq.Exec"
-	operationNameQuery    = "pq.Query"
-	operationNameQueryRow = "pq.QueryRow"
+	operationNameExec        = "pq.Exec"
+	operationNameQuery       = "pq.Query"
+	operationNameQueryRow    = "pq.QueryRow"
 	operationNameTransaction = "pq.Transaction"
-	errLogKeyEvent        = "event"
-	errLogKeyMessage      = "message"
-	errLogValueErr        = "error"
-	logKeySql             = "sql"
+	errLogKeyEvent           = "event"
+	errLogKeyMessage         = "message"
+	errLogValueErr           = "error"
 )
 
 type tracingAdapter struct {
@@ -41,7 +40,7 @@ func (ta *tracingAdapter) Transaction(ctx context.Context, f func(context.Contex
 }
 
 func (ta *tracingAdapter) Exec(ctx context.Context, sql string, args ...interface{}) (result RowsAffected, err error) {
-	span, spanCtx := startSpan(ctx, sql, operationNameExec)
+	span, spanCtx := startSpan(ctx, operationNameExec)
 
 	rowsAffected, err := ta.Executor.Exec(spanCtx, sql, args...)
 
@@ -55,7 +54,7 @@ func (ta *tracingAdapter) Exec(ctx context.Context, sql string, args ...interfac
 }
 
 func (ta *tracingAdapter) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
-	span, spanCtx := startSpan(ctx, sql, operationNameQuery)
+	span, spanCtx := startSpan(ctx, operationNameQuery)
 
 	rows, err := ta.Executor.Query(spanCtx, sql, args...)
 
@@ -68,7 +67,7 @@ func (ta *tracingAdapter) Query(ctx context.Context, sql string, args ...interfa
 }
 
 func (ta *tracingAdapter) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
-	span, spanCtx := startSpan(ctx, sql, operationNameQueryRow)
+	span, spanCtx := startSpan(ctx, operationNameQueryRow)
 
 	row := ta.Executor.QueryRow(spanCtx, sql, args...)
 
@@ -85,8 +84,7 @@ func traceErr(err error, span opentracing.Span) {
 	)
 }
 
-func startSpan(ctx context.Context, sql string, name string) (opentracing.Span, context.Context) {
+func startSpan(ctx context.Context, name string) (opentracing.Span, context.Context) {
 	span, spanCtx := opentracing.StartSpanFromContext(ctx, name)
-	span.LogFields(log.String(logKeySql, sql))
 	return span, spanCtx
 }
