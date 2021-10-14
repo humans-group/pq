@@ -1,6 +1,6 @@
-module github.com/humans-net/pq
+module github.com/humans-group/pq
 
-go 1.14
+go 1.16
 
 require (
 	github.com/jackc/pgconn v1.7.0

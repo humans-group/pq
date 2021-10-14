@@ -1,4 +1,4 @@
-![CI](https://github.com/humans-net/pq/workflows/CI/badge.svg)
+![CI](https://github.com/humans-group/pq/workflows/CI/badge.svg)
 
 Simple wrapper over github.com/jackc/pgx for production usage.
 
