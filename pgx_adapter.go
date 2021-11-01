@@ -72,7 +72,12 @@ func (p PgxAdapter) SetLogLevel(lvl int) error {
 	panic("implement me")
 }
 
-func NewClient(ctx context.Context, cfg Config) Client {
+func NewClient(ctx context.Context, cfg Config, opts ...Option) Client {
+	var optsStruct options
+	for _, o := range opts {
+		optsStruct = o(optsStruct)
+	}
+
 	cfg = cfg.withDefaults()
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.ConnString)
@@ -90,8 +95,8 @@ func NewClient(ctx context.Context, cfg Config) Client {
 
 	poolCfg.ConnConfig.DialFunc = dialer.DialContext
 	poolCfg.MaxConns = cfg.MaxConnections
-	if cfg.Logger != nil {
-		poolCfg.ConnConfig.Logger = newLoggerAdapter(cfg.Logger)
+	if optsStruct.Logger != nil {
+		poolCfg.ConnConfig.Logger = newLoggerAdapter(optsStruct.Logger)
 	}
 	poolCfg.BeforeAcquire = func(ctx context.Context, conn *pgx.Conn) bool {
 		return !conn.IsClosed()
@@ -125,7 +130,6 @@ func NewClient(ctx context.Context, cfg Config) Client {
 
 	return adapter
 }
-
 
 type batchResultsAdapter struct {
 	pgx.BatchResults

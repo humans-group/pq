@@ -2,14 +2,11 @@ package pq
 
 import (
 	"time"
-
-	"go.uber.org/zap"
 )
 
 type Config struct {
 	Name               string
 	ConnString         string
-	Logger             *zap.Logger `key:"-"`
 	Tracing            bool
 	Metrics            bool
 	MaxConnections     int32
