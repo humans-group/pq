@@ -3,9 +3,9 @@ package pq
 import (
 	"context"
 
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/ext"
-	"github.com/opentracing/opentracing-go/log"
+	"github.com/humans-group/opentelemetry-go/trace"
+	"github.com/humans-group/opentelemetry-go/attribute"
+
 )
 
 const (
@@ -26,65 +26,62 @@ type tracingAdapter struct {
 var _ Client = &tracingAdapter{}
 
 func (ta *tracingAdapter) Transaction(ctx context.Context, f func(context.Context, Executor) error) error {
-	span, spanCtx := opentracing.StartSpanFromContext(ctx, operationNameTransaction)
-
-	err := ta.Transactor.Transaction(spanCtx, f)
+	span := trace.SpanFromContext(ctx)
+	span.AddEvent("db", trace.WithAttributes(
+		attribute.String("db.operation", operationNameTransaction),
+	))
+	err := ta.Transactor.Transaction(ctx, f)
 
 	if err != nil {
 		traceErr(err, span)
 	}
-
-	span.Finish()
 
 	return err
 }
 
 func (ta *tracingAdapter) Exec(ctx context.Context, sql string, args ...interface{}) (result RowsAffected, err error) {
-	span, spanCtx := startSpan(ctx, operationNameExec)
+	span := trace.SpanFromContext(ctx)
+	span.AddEvent("db", trace.WithAttributes(
+		attribute.String("db.operation", operationNameExec),
+	))
 
-	rowsAffected, err := ta.Executor.Exec(spanCtx, sql, args...)
+	rowsAffected, err := ta.Executor.Exec(ctx, sql, args...)
 
 	if err != nil {
 		traceErr(err, span)
 	}
-
-	span.Finish()
 
 	return rowsAffected, err
 }
 
 func (ta *tracingAdapter) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
-	span, spanCtx := startSpan(ctx, operationNameQuery)
+	span := trace.SpanFromContext(ctx)
+	span.AddEvent("db", trace.WithAttributes(
+		attribute.String("db.operation", operationNameQuery),
+	))
 
-	rows, err := ta.Executor.Query(spanCtx, sql, args...)
+	rows, err := ta.Executor.Query(ctx, sql, args...)
 
 	if err != nil {
 		traceErr(err, span)
 	}
-	span.Finish()
 
 	return rows, err
 }
 
 func (ta *tracingAdapter) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
-	span, spanCtx := startSpan(ctx, operationNameQueryRow)
+	span := trace.SpanFromContext(ctx)
+	span.AddEvent("db", trace.WithAttributes(
+		attribute.String("db.operation", operationNameQueryRow),
+	))
 
-	row := ta.Executor.QueryRow(spanCtx, sql, args...)
-
-	span.Finish()
+	row := ta.Executor.QueryRow(ctx, sql, args...)
 
 	return row
 }
 
-func traceErr(err error, span opentracing.Span) {
-	ext.Error.Set(span, true)
-	span.LogFields(
-		log.String(errLogKeyEvent, errLogValueErr),
-		log.String(errLogKeyMessage, err.Error()),
-	)
-}
-
-func startSpan(ctx context.Context, name string) (opentracing.Span, context.Context) {
-	span, spanCtx := opentracing.StartSpanFromContext(ctx, name)
-	return span, spanCtx
+func traceErr(err error, span trace.Span) {
+	span.AddEvent("error", trace.WithAttributes(
+		attribute.String("db.error", err.Error()),
+	))
 }
