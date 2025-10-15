@@ -3,9 +3,9 @@ package pq
 import (
 	"context"
 
-	"github.com/humans-group/opentelemetry-go/trace"
+	otel "github.com/humans-group/opentelemetry-go"
 	"github.com/humans-group/opentelemetry-go/attribute"
-
+	"github.com/humans-group/opentelemetry-go/trace"
 )
 
 const (
@@ -26,7 +26,10 @@ type tracingAdapter struct {
 var _ Client = &tracingAdapter{}
 
 func (ta *tracingAdapter) Transaction(ctx context.Context, f func(context.Context, Executor) error) error {
-	span := trace.SpanFromContext(ctx)
+	tracer := otel.Tracer("db")
+	_, span := tracer.Start(ctx, operationNameTransaction)
+	defer span.End()
+
 	span.AddEvent("db", trace.WithAttributes(
 		attribute.String("db.operation", operationNameTransaction),
 	))
@@ -40,9 +43,12 @@ func (ta *tracingAdapter) Transaction(ctx context.Context, f func(context.Contex
 }
 
 func (ta *tracingAdapter) Exec(ctx context.Context, sql string, args ...interface{}) (result RowsAffected, err error) {
-	span := trace.SpanFromContext(ctx)
+	tracer := otel.Tracer("db")
+	_, span := tracer.Start(ctx, operationNameExec)
+	defer span.End()
 	span.AddEvent("db", trace.WithAttributes(
 		attribute.String("db.operation", operationNameExec),
+		attribute.String("db.sql", sql),
 	))
 
 	rowsAffected, err := ta.Executor.Exec(ctx, sql, args...)
@@ -55,9 +61,12 @@ func (ta *tracingAdapter) Exec(ctx context.Context, sql string, args ...interfac
 }
 
 func (ta *tracingAdapter) Query(ctx context.Context, sql string, args ...interface{}) (Rows, error) {
-	span := trace.SpanFromContext(ctx)
+	tracer := otel.Tracer("db")
+	_, span := tracer.Start(ctx, operationNameQuery)
+	defer span.End()
 	span.AddEvent("db", trace.WithAttributes(
 		attribute.String("db.operation", operationNameQuery),
+		attribute.String("db.sql", sql),
 	))
 
 	rows, err := ta.Executor.Query(ctx, sql, args...)
@@ -70,9 +79,12 @@ func (ta *tracingAdapter) Query(ctx context.Context, sql string, args ...interfa
 }
 
 func (ta *tracingAdapter) QueryRow(ctx context.Context, sql string, args ...interface{}) Row {
-	span := trace.SpanFromContext(ctx)
+	tracer := otel.Tracer("db")
+	_, span := tracer.Start(ctx, operationNameQueryRow)
+	defer span.End()
 	span.AddEvent("db", trace.WithAttributes(
 		attribute.String("db.operation", operationNameQueryRow),
+		attribute.String("db.sql", sql),
 	))
 
 	row := ta.Executor.QueryRow(ctx, sql, args...)
